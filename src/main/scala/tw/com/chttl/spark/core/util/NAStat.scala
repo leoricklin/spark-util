@@ -3,7 +3,6 @@ import org.apache.spark.rdd._
 /**
  * Created by leorick on 2015/8/10.
  */
-package tw.com.chttl.spark.core.util
 
 object NAStat extends Serializable {
 
@@ -13,11 +12,10 @@ object NAStat extends Serializable {
       iter.foreach(arr => {
         cnts.zip(arr).foreach { case (cnt, d) => cnt.add(d) }
       })
-      Iterator(nas)
+      Iterator(cnts)
     })
     nastats.reduce((n1, n2) => {
       n1.zip(n2).map { case (a, b) => a.merge(b) }
     })
   }
 }
-
