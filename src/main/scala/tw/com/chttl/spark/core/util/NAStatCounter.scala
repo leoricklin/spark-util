@@ -10,21 +10,24 @@ import org.apache.spark.util.StatCounter
 class NAStatCounter extends Serializable {
   val stats: StatCounter = new StatCounter()
   var missing: Long = 0
+  var sum = 0D
   def add(x: Double): NAStatCounter = {
     if (java.lang.Double.isNaN(x)) {
       missing += 1
     } else {
       stats.merge(x)
+      sum += sum
     }
     this
   }
   def merge(other: NAStatCounter): NAStatCounter = {
     stats.merge(other.stats)
     missing += other.missing
+    sum += other.sum
     this
   }
   override def toString = {
-    "stats: " + stats.toString + " NaN: " + missing
+    f"stats: + ${stats.toString} + Sum: ${sum} + NaN: + ${missing}"
   }
 }
 
