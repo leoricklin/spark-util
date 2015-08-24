@@ -3,7 +3,7 @@ package tw.com.chttl.spark.test.util
 /**
  * Created by leo on 2015/8/24.
  */
-object TimeEvaluation {
+object TimeEvaluation extends Serializable {
   def time[A](f: => A) = {
     val s = System.nanoTime
     val ret = f
