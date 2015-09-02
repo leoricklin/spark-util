@@ -11,9 +11,11 @@ object NAStat extends Serializable {
   def statsWithMissing(rdd: RDD[Array[Double]]): Array[NAStatCounter] = {
     val nastats = rdd.mapPartitions( (iter: Iterator[Array[Double]]) => {
       val cnts: Array[NAStatCounter] = iter.next().map(d => NAStatCounter(d))
-      iter.foreach(arr => {
-        cnts.zip(arr).foreach { case (cnt, d) => cnt.add(d) }
-      })
+      if (iter.hasNext) {
+        iter.foreach(arr => {
+          cnts.zip(arr).foreach { case (cnt, d) => cnt.add(d) }
+        })
+      }
       Iterator(cnts)
     })
     nastats.reduce((n1, n2) => {
