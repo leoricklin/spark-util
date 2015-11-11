@@ -4,7 +4,7 @@ package tw.com.chttl.spark.core.util
  * Created by leorick on 2015/8/10.
  */
 object StringHelper extends Serializable {
-  def tokenize(src : String, delimiter : String, trim : Boolean) = {
+  def tokenize(src : String, delimiter : String, trim: Boolean = false) = {
     if (trim)
       src.split(delimiter).map(_.trim)
     else

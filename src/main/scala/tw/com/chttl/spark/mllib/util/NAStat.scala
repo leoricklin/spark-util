@@ -19,6 +19,7 @@ object NAStat extends Serializable {
       Iterator(cnts)
     })
     nastats.reduce((n1, n2) => {
+      // val t: Array[NAStatCounter] = n1
       n1.zip(n2).map { case (a, b) => a.merge(b) }
     })
   }
