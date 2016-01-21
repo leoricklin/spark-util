@@ -1,5 +1,6 @@
 package tw.com.chttl.spark.quality.util
 
+import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkContext, SparkConf}
 
 /**
@@ -11,7 +12,7 @@ object NAStatTest {
   val sc = new SparkContext(sparkConf)
 
   def statsWithMissingTest() = {
-    val rdd = sc.parallelize(Seq(Array(1.0, 2.0), Array(2.0,3.0)), 2)
+    val rdd: RDD[Array[Double]] = sc.parallelize(Seq(Array(1.0, 2.0), Array(2.0,3.0)), 2)
     NAStat.statsWithMissing(rdd)
     /*
     res7: Array[NAStatCounter] = Array(
