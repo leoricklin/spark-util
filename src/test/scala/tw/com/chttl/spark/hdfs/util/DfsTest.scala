@@ -12,7 +12,34 @@ object DfsTest {
     val sparkConf = new SparkConf().setAppName(appName)
     val sc = new SparkContext(sparkConf)
     // :load /home/leoricklin/jar/Dfs.scala
-    Dfs.countUsage(sc, new Path("hdfs:///user/leoricklin"))
+    val dfsPath = new Path("hdfs:///hive")
+    val time = System.currentTimeMillis()
+    val m1 = FileSystem.get(sc.hadoopConfiguration).listStatus(dfsPath).
+      filter{_.isDirectory}.
+      map{ status =>  status.getPath -> Dfs.countUsage(sc, status.getPath)  }.
+      groupBy(_._1).mapValues{ v => v.head._2}
+    var status = FileSystem.get(sc.hadoopConfiguration).listStatus(dfsPath).
+      filter{_.isDirectory}
+    val path = status.head.getPath
+    val pathusage = scala.collection.mutable.Map( path -> Dfs.countUsage(sc, path) )
+    status.foreach{ status =>
+      val path = status.getPath
+      pathusage += (path -> Dfs.countUsage(sc, path)) }
+
+    val m2 = FileSystem.get(sc.hadoopConfiguration).listStatus(dfsPath).
+      filter{_.isDirectory}.
+      map{ status =>  status.getPath -> Dfs.countUsage(sc, status.getPath)  }.
+      groupBy(_._1).mapValues{ v => v.head._2}
+    m2.map{ case (path, len) =>
+      ( path, len - m1(path) ) }.toArray.sortBy{ case (path, diff) => diff }.
+      reverse.foreach{ case (path, diff) => println(f"${path.getName}, ${diff}}") }
+
+    val a1: Iterator[Int] = Array(1,2,3).toIterator
+    val v = a1.next
+    val m3 = scala.collection.mutable.Map( v -> v.toString())
+    a1.foreach{ v => m3 += (v -> v.toString)  }
+
+    Dfs.countUsage(sc, dfsPath)
     /*
 ret1: Long = 283676982489
 
