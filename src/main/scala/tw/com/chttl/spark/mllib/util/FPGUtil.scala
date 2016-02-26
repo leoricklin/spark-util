@@ -6,7 +6,7 @@ import org.apache.spark.mllib.fpm.FPGrowthModel
 /**
  * Created by leorick on 2016/1/21.
  */
-object FPGUtil {
+object FPGUtil extends Serializable {
   /**
    * usage: 計算 FPGModel 內 itemset 的 lift 值
    * return Array[(lift:Double, items:(Array[String], freq:Long, txCnt:Long, indProb:Double, itsetProb:Double, lift:Double))]

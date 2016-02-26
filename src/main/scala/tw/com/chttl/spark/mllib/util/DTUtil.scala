@@ -8,7 +8,7 @@ import scala.collection.mutable
 /**
  * Created by leorick on 2016/2/18.
  */
-object DTUtil {
+object DTUtil extends Serializable  {
 
   /**
    *
@@ -85,17 +85,15 @@ object DTUtil {
   /**
    * compute the avg. gain of features with Nodes in Array[DecisionTreeModel]
    * @param trees
-   * @return
+   * @return map of (feature_id, (number_of_nodes, avg_gain))
    */
-  def nodeTreeAvgGain(trees: Array[DecisionTreeModel]) = {
+  def nodeTreeAvgGain(trees: Array[DecisionTreeModel]): Map[Int, (Int, Double)] = {
     ( trees.map{ tree => nodeAryAvgGain( dTree2Array(tree) ) } ).
-      reduce{ (map1, map2) =>
-        map1 ++ ( map2.map{ case (id2:Int, (cnt2:Int, avg2:Double)) =>
+      reduce{ (map1, map2) =>  map1 ++ map2.
+        map{ case (id2:Int, (cnt2:Int, avg2:Double)) =>
           val (cnt1:Int, avg1:Double) = map1.getOrElse(id2, 0 -> 0.0)
           val cnt = cnt1+cnt2
-          id2 -> (cnt, ((cnt1*avg1+cnt2*avg2).toDouble)/cnt )
-        } )
-      }
+          id2 -> (cnt, ((cnt1*avg1+cnt2*avg2).toDouble)/cnt ) } }
   }
 
 }

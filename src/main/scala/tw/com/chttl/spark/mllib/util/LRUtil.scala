@@ -5,7 +5,7 @@ import org.apache.spark.mllib.linalg.Vector
 /**
  * Created by leorick on 2016/2/19.
  */
-object LRUtil {
+object LRUtil extends Serializable {
   /**
    *
    * @param coef coefficient of LRModel
