@@ -1,6 +1,9 @@
 package tw.com.chttl.spark.mllib.util
 
+import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.mllib.tree.RandomForest
 import org.apache.spark.mllib.tree.model.{DecisionTreeModel, Node}
+import org.apache.spark.rdd.RDD
 
 import scala.collection.immutable.IndexedSeq
 import scala.collection.mutable
@@ -76,10 +79,17 @@ object DTUtil extends Serializable  {
    * @return Map[k, v] with key = feature id, value = (number of nodes , avg. Gain)
    */
   def nodeAryAvgGain(nodes: Array[Node]): Map[Int, (Int, Double)] = {
-    nodes.
+    val ret: Map[Int, (Int, Double)] = nodes.
       filter{ node => (node != null && !node.split.isEmpty && !node.stats.isEmpty) }.
-      groupBy{ node => node.split.get.feature }.
-      mapValues{ nodes => (nodes.size, nodes.map{ node => node.stats.get.gain}.sum / nodes.size) }
+      groupBy{ node =>
+        if (node.split.isDefined)
+          node.split.get.feature
+        else
+          (-1) }.
+      mapValues{ nodes =>
+        val avg = nodes.map{ node => if (node.stats.isDefined) node.stats.get.gain else 0 }.sum / nodes.size
+        (nodes.size, avg) }
+    ret
   }
 
   /**
@@ -88,12 +98,61 @@ object DTUtil extends Serializable  {
    * @return map of (feature_id, (number_of_nodes, avg_gain))
    */
   def nodeTreeAvgGain(trees: Array[DecisionTreeModel]): Map[Int, (Int, Double)] = {
-    ( trees.map{ tree => nodeAryAvgGain( dTree2Array(tree) ) } ).
+    val ret: Map[Int, (Int, Double)] = ( trees.map{ tree => nodeAryAvgGain( dTree2Array(tree) ) } ).
       reduce{ (map1, map2) =>  map1 ++ map2.
         map{ case (id2:Int, (cnt2:Int, avg2:Double)) =>
           val (cnt1:Int, avg1:Double) = map1.getOrElse(id2, 0 -> 0.0)
           val cnt = cnt1+cnt2
           id2 -> (cnt, ((cnt1*avg1+cnt2*avg2).toDouble)/cnt ) } }
+    ret
   }
 
+  /**
+   * selecting feature using RF Classification and sort by information gain of each feature
+   * @param lps: RDD of LabeledPoint
+   * @param numClasses: number of target classes
+   * @param numIteration: number of evaluation iteration
+   * @param minFeatureOccurRatio: ratio of feature occurrences in subtree
+   * @param numTrees: number of subtrees in Random Forrest
+   * @param featureSubset: feature subset strategy
+   * @param impurity: impurity
+   * @param depth: number of deepth for subtree
+   * @param bins: max bins for subtree
+   * @param seed: random seed
+   * @param sorted: if sort the result
+   * @return Seq of (feature_id, (feature_occurs_count, avg_info_gain))
+   */
+  def selFeaturesbyRfClassifier( lps: RDD[LabeledPoint] , numClasses: Int
+                      , numIteration:Int = 3 , minFeatureOccurRatio:Double = 0.2
+                      , numTrees:Int = 10, featureSubset:String = "auto", impurity:String = "entropy", depth:Int = 4, bins:Int = 100
+                      , seed:Int = 100 , sorted:Boolean = true): Seq[(Int, (Int, Double))] = {
+    lps.cache()
+    // 每個feature在tree出現最少次數
+    val minFeatureOccurs = BigDecimal(((java.lang.Math.pow(2, depth+1) -1) * minFeatureOccurRatio)).
+      setScale(0, scala.math.BigDecimal.RoundingMode.UP).toInt // 7
+    val featureSelects: Map[Int, (Int, Double)] = (1 to numIteration).
+        map{ i =>
+        val modelRf = RandomForest.trainClassifier(lps, numClasses, Map[Int,Int]()
+          , numTrees, featureSubset, impurity, depth, bins, seed)
+        // this metric cloud be used for model selection
+        /*
+        val precision = (new MulticlassMetrics( lps.
+          zip( modelRf.predict( lps.map{ lp => lp.features }) ).
+          map{ case (lp: LabeledPoint, predict: Double) => (lp.label, predict) } ) ).precision
+         */
+        val nodeAvgGain: Map[Int, (Int, Double)] = nodeTreeAvgGain(modelRf.trees)
+        nodeAvgGain.filter{ case (k, (cnt, gain)) => cnt.toString.toInt >= minFeatureOccurs }  }.
+        reduce{ (map1, map2) =>
+        map1 ++  map2.
+          map{ case (id2:Int, (cnt2:Int, avg2:Double)) =>
+          val (cnt1:Int, avg1:Double) = map1.getOrElse(id2, 0 -> 0.0)
+          val cnt = cnt1+cnt2
+          id2 -> (cnt, ((cnt1*avg1+cnt2*avg2).toDouble)/cnt ) } }
+    lps.unpersist(true)
+    if (sorted) {
+      featureSelects.toSeq.sortBy{ case (k, (cnt, gain)) => gain }.reverse
+    } else {
+      featureSelects.toSeq
+    }
+  }
 }

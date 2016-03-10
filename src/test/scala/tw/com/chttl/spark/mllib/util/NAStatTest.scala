@@ -1,7 +1,7 @@
-package tw.com.chttl.spark.quality.util
+package tw.com.chttl.spark.mllib.util
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{SparkContext, SparkConf}
+import org.apache.spark.{SparkConf, SparkContext}
 
 /**
  * Created by leorick on 2015/12/2.
