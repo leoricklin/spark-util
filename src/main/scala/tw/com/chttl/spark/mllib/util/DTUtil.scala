@@ -2,10 +2,13 @@ package tw.com.chttl.spark.mllib.util
 
 import java.io.Serializable
 
+import org.apache.spark.mllib.evaluation.MulticlassMetrics
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.tree.RandomForest
-import org.apache.spark.mllib.tree.model.{DecisionTreeModel, Node}
+import org.apache.spark.mllib.tree.model.{RandomForestModel, DecisionTreeModel, Node}
+import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.rdd.RDD
+import tw.com.chttl.spark.test.util.TimeEvaluation
 
 import scala.collection.immutable.IndexedSeq
 import scala.collection.mutable
@@ -124,10 +127,7 @@ object DTUtil extends Serializable  {
    * @param sorted: if sort the result
    * @return Seq of (feature_id, (feature_occurs_count, avg_info_gain))
    */
-  def selFeaturesbyRfClassifier( lps: RDD[LabeledPoint] , numClasses: Int
-                      , numIteration:Int = 3 , minFeatureOccurRatio:Double = 0.2
-                      , numTrees:Int = 10, featureSubset:String = "auto", impurity:String = "entropy", depth:Int = 4, bins:Int = 100
-                      , seed:Int = 100 , sorted:Boolean = true): Seq[(Int, (Int, Double))] = {
+  def selFeaturesbyRfClassifier( lps: RDD[LabeledPoint] , numClasses: Int, numIteration:Int = 3 , minFeatureOccurRatio:Double = 0.2, numTrees:Int = 10, featureSubset:String = "auto", impurity:String = "entropy", depth:Int = 4, bins:Int = 100, seed:Int = 100 , sorted:Boolean = true): Seq[(Int, (Int, Double))] = {
     lps.cache()
     // 每個feature在tree出現最少次數
     val minFeatureOccurs = BigDecimal(((java.lang.Math.pow(2, depth+1) -1) * minFeatureOccurRatio)).
@@ -156,5 +156,53 @@ object DTUtil extends Serializable  {
     } else {
       featureSelects.toSeq
     }
+  }
+
+  /**
+   *
+   * @param dataTrain
+   * @param numClasses
+   * @param catInfo
+   * @param maxBins
+   * @param maxDepths
+   * @param impurities
+   * @param maxTrees
+   * @param numFolds
+   * @return Array[(Array[Int], Array[(RandomForestModel, Array[Double])])] =
+   *         Array( params: Array(bins, depth, impurityNum, numTrees),
+   *                modelMetrics: Array( (model, Array(fMeasure, precision, recall) ) ) )
+   */
+  def multiParamRfCvs( dataTrain:RDD[LabeledPoint], numClasses: Int, catInfo: Map[Int, Int],
+                       maxBins: Array[Int], maxDepths: Array[Int], impurities: Array[Int], maxTrees:Array[Int],
+                       numFolds: Int = 3)
+  : Array[(Array[Int], Array[(RandomForestModel, Array[Double])])] = {
+    val seed = 1
+    val evaluations = for {
+      impurityNum <- impurities
+      depth <- maxDepths
+      bins <- maxBins
+      numTrees <- maxTrees
+    } yield {
+      val impurity = impurityNum match {
+        case 0 => "gini"
+        case _ => "entropy"
+      }
+      val folds: Array[(RDD[LabeledPoint], RDD[LabeledPoint])] = MLUtils.kFold(dataTrain, numFolds, seed)
+      val modelMetrics = folds.
+        map{ case (training, validation) =>
+        training.cache;validation.cache()
+        // training model
+        println(f"bins=${bins}, depth=${depth}, impurity=${impurity}, trees=${numTrees}, ")
+        val model = TimeEvaluation.time( RandomForest.trainClassifier(training, numClasses, catInfo, numTrees, "auto", impurity, depth, bins, seed) )
+        training.unpersist()
+        // validatiing model
+        val predictLabels = model.predict( validation.map(_.features) ).
+          zip( validation.map(_.label) )
+        validation.unpersist()
+        val metric = new MulticlassMetrics(predictLabels)
+        ( model, Array(metric.fMeasure, metric.precision, metric.recall) ) }
+      ( Array(bins, depth, impurityNum, numTrees), modelMetrics )
+    }
+    evaluations
   }
 }
